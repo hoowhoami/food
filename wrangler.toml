@@ -1,6 +1,6 @@
 name = "food"
 main = "src/index.js"
-workers_dev = true
+workers_dev = false
 compatibility_date = "2025-07-25"
 
 [observability]
