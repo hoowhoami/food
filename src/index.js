@@ -7,17 +7,17 @@ export default {
     // 本地开发环境：Wrangler会自动处理public文件夹
     // 生产环境：通过wrangler.toml配置的静态资源绑定
     if (url.pathname === '/') {
-      const html = await getStaticAsset('public/index.html', env);
+      const html = await getStaticAsset('src/public/index.html', env);
       return new Response(html, {
         headers: { 'Content-Type': 'text/html;charset=UTF-8' }
       });
     } else if (url.pathname === '/style.css') {
-      const css = await getStaticAsset('public/style.css', env);
+      const css = await getStaticAsset('src/public/style.css', env);
       return new Response(css, {
         headers: { 'Content-Type': 'text/css' }
       });
     } else if (url.pathname === '/app.js') {
-      const js = await getStaticAsset('public/app.js', env);
+      const js = await getStaticAsset('src/public/app.js', env);
       return new Response(js, {
         headers: { 'Content-Type': 'application/javascript' }
       });
@@ -77,7 +77,7 @@ async function getStaticAsset(path, env) {
   // 生产环境：使用Cloudflare Workers的静态资源绑定
   if (env.__STATIC_CONTENT) {
     // 生产环境路径需要移除public前缀
-    const productionPath = path.replace('public/', '');
+    const productionPath = path.replace('src/public/', '');
     const content = await env.__STATIC_CONTENT.get(productionPath);
     if (content) return content;
   }
