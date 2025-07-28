@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今天吃什么 - 食物转盘</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>今天吃什么</h1>
+            <p class="subtitle">让转盘决定你的用餐选择</p>
+        </header>
+
+        <!-- 转盘容器 -->
+        <div class="wheel-container">
+            <canvas id="wheel" width="500" height="500"></canvas>
+            <div class="wheel-center">
+                <div id="spin-btn" class="wheel-center-inner">转</div>
+            </div>
+            <div class="pointer"></div>
+        </div>
+
+        <!-- 结果显示 -->
+        <div id="result" class="result">
+            <h2>恭喜！今天吃...</h2>
+            <p id="result-text" class="result-text">今天吃...</p>
+        </div>
+
+        <!-- 错误提示 -->
+        <div id="error-container" class="error-container" style="display: none;"></div>
+
+        <!-- 添加食物区域 -->
+        <div class="add-food-section">
+            <h3>添加食物</h3>
+            <div class="input-group">
+                <input type="text" id="food-input" placeholder="输入食物名称...">
+                <button id="add-food-btn" class="btn">
+                    <i class="fa fa-plus"></i> 添加
+                </button>
+            </div>
+        </div>
+
+        <!-- 食物列表 -->
+        <div class="food-list-section">
+            <div class="section-header">
+                <h3>食物列表</h3>
+                <button id="reset-btn" class="reset-btn">
+                    <i class="fa fa-trash"></i> 清空
+                </button>
+            </div>
+            <div id="food-list" class="food-list">
+                <!-- 食物列表将通过JS动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

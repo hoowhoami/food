@@ -9,3 +9,7 @@ enabled = true
 [[kv_namespaces]]
 id = "84621e3307514a09ad71fda98934de5d"
 binding = "FOOD_WHEEL_STORAGE"
+
+# 静态资源绑定（关键：让Worker能访问public文件夹）
+[site]
+bucket = "src/public"  # 静态资源文件夹路径
