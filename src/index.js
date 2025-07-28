@@ -1,143 +1,97 @@
-// worker.js（后端逻辑）
+// index.js（Cloudflare Workers 入口文件）
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const path = url.pathname;
 
-    // 1. 处理前端静态资源请求（HTML/CSS/JS）
-    // 本地开发环境：Wrangler会自动处理public文件夹
-    // 生产环境：通过wrangler.toml配置的静态资源绑定
-    if (url.pathname === '/') {
-      const html = await getStaticAsset('src/public/index.html', env);
-      return new Response(html, {
-        headers: { 'Content-Type': 'text/html;charset=UTF-8' }
-      });
-    } else if (url.pathname === '/style.css') {
-      const css = await getStaticAsset('src/public/style.css', env);
-      return new Response(css, {
-        headers: { 'Content-Type': 'text/css' }
-      });
-    } else if (url.pathname === '/app.js') {
-      const js = await getStaticAsset('src/public/app.js', env);
-      return new Response(js, {
-        headers: { 'Content-Type': 'application/javascript' }
-      });
-    }
+    try {
+      // 1. 处理静态资源（使用 Workers 静态资源绑定，不依赖 Deno）
+      const staticFile = getStaticFilePath(path);
+      if (staticFile) {
+        // 通过 Workers 内置的 __STATIC_CONTENT 读取绑定的静态资源
+        const fileContent = await env.__STATIC_CONTENT.get(staticFile.path);
 
-    // 2. 处理 API 请求
-    if (url.pathname.startsWith('/api')) {
-      // 处理 /api/foods GET
-      if (url.pathname === '/api/foods' && request.method === 'GET') {
-        const foods = await getFoods(env);
-        return new Response(JSON.stringify(foods), {
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-
-      // 处理 /api/foods POST
-      if (url.pathname === '/api/foods' && request.method === 'POST') {
-        const body = await request.json();
-        if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
-          return new Response(JSON.stringify({ error: '食物名称不能为空' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
+        if (!fileContent) {
+          return new Response(`静态资源 ${staticFile.path} 未找到`, {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
           });
         }
 
-        const newFood = await addFood(env, body.name.trim());
-        return new Response(JSON.stringify(newFood), {
-          headers: { 'Content-Type': 'application/json' }
+        return new Response(fileContent, {
+          headers: { 'Content-Type': staticFile.mimeType }
         });
       }
 
-      // 处理 /api/reset
-      if (url.pathname === '/api/reset' && request.method === 'POST') {
-        await resetFoods(env);
-        return new Response(JSON.stringify({ success: true }), {
-          headers: { 'Content-Type': 'application/json' }
-        });
+      // 2. 处理 API 请求（如果有）
+      if (path.startsWith('/api')) {
+        return handleApiRequest(request, env);
       }
 
-      // 无效API路由
-      return new Response(JSON.stringify({
-        error: 'API端点不存在',
-        details: '请求的API路径不存在，请检查请求URL'
-      }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      // 3. 未匹配的路径返回 404
+      return new Response('请求的路径不存在', { status: 404 });
+
+    } catch (error) {
+      console.error('请求处理失败:', error);
+      return new Response(`服务器错误: ${error.message}`, { status: 500 });
     }
-
-    // 3. 404处理
-    return new Response('页面不存在', { status: 404 });
   }
 };
 
-// 静态资源处理（兼容本地开发和生产环境）
-async function getStaticAsset(path, env) {
-  // 生产环境：使用Cloudflare Workers的静态资源绑定
-  if (env.__STATIC_CONTENT) {
-    // 生产环境路径需要移除public前缀
-    const productionPath = path.replace('src/public/', '');
-    const content = await env.__STATIC_CONTENT.get(productionPath);
-    if (content) return content;
-  }
-
-  // 本地开发环境：使用Wrangler的文件系统访问
-  try {
-    // 仅在本地开发时生效，Wrangler会处理此API
-    return await Deno.readTextFile(path);
-  } catch (e) {
-    console.error(`读取静态资源失败: ${path}`, e);
-    throw new Error(`静态资源不存在: ${path}`);
-  }
-}
-
-// KV操作函数
-async function getFoods(env) {
-  try {
-    if (!env.FOOD_WHEEL_STORAGE) {
-      throw new Error("KV命名空间未绑定，请检查FOOD_WHEEL_STORAGE配置");
-    }
-
-    const data = await env.FOOD_WHEEL_STORAGE.get('foods');
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error("获取食物列表失败：", error.message);
-    throw error;
-  }
-}
-
-async function addFood(env, name) {
-  try {
-    if (!env.FOOD_WHEEL_STORAGE) {
-      throw new Error("KV命名空间未绑定");
-    }
-
-    const foods = await getFoods(env);
-    const newFood = {
-      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 8),
-      name: name,
-      addedAt: Date.now()
+// 映射 URL 路径到静态资源文件及 MIME 类型
+function getStaticFilePath(requestPath) {
+  // 处理根路径（/ → index.html）
+  if (requestPath === '/' || requestPath === '/index.html') {
+    return {
+      path: 'index.html',
+      mimeType: 'text/html;charset=UTF-8'
     };
-
-    foods.push(newFood);
-    await env.FOOD_WHEEL_STORAGE.put('foods', JSON.stringify(foods));
-    return newFood;
-  } catch (error) {
-    console.error("添加食物失败：", error.message);
-    throw error;
   }
+
+  // 处理 CSS
+  if (requestPath === '/style.css') {
+    return {
+      path: 'style.css',
+      mimeType: 'text/css'
+    };
+  }
+
+  // 处理 JS
+  if (requestPath === '/app.js') {
+    return {
+      path: 'app.js',
+      mimeType: 'application/javascript'
+    };
+  }
+
+  // 其他静态资源（如图片，根据需要添加）
+  if (requestPath.endsWith('.png')) {
+    return {
+      path: requestPath.slice(1), // 去掉开头的 '/'
+      mimeType: 'image/png'
+    };
+  }
+
+  // 非静态资源路径
+  return null;
 }
 
-async function resetFoods(env) {
-  try {
-    if (!env.FOOD_WHEEL_STORAGE) {
-      throw new Error("KV命名空间未绑定");
-    }
+// 处理 API 请求（示例：食物相关接口）
+async function handleApiRequest(request, env) {
+  const url = new URL(request.url);
+  const path = url.pathname;
 
-    await env.FOOD_WHEEL_STORAGE.put('foods', JSON.stringify([]));
-  } catch (error) {
-    console.error("重置食物列表失败：", error.message);
-    throw error;
+  // 示例：获取食物列表
+  if (path === '/api/foods' && request.method === 'GET') {
+    const foods = await env.FOOD_WHEEL_STORAGE.get('foods') || '[]';
+    return new Response(foods, {
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
+
+  // 其他 API 逻辑（添加/重置食物等）
+  return new Response(JSON.stringify({ error: 'API 路径不存在' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' }
+  });
 }
